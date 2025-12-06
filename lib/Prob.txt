@@ -1,0 +1,439 @@
+advance this page with a search engine for room names and filters; 
+filter like; room types;; economy | standard | luxury
+and then filter based on priceing from cheapest to expensive and vice versa 
+also filter based on availabity of room;; 
+and make it auto update live from firebase 
+
+do not TAMPER with the ui and this code pls; 
+just make the relavent changes that all
+
+
+import 'package:aurion_hotel/_logik/notification_services.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:aurion_hotel/_components/color.dart';
+
+class BookingsPage extends StatefulWidget {
+  final String userId;
+  final bool isMobile;
+  const BookingsPage({required this.userId, Key? key, required this.isMobile})
+      : super(key: key);
+  @override
+  _BookingsPageState createState() => _BookingsPageState();
+}
+
+class _BookingsPageState extends State<BookingsPage> {
+  String? selectedRoomId;
+  List selectedRoomBookedRanges = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          // subtle gradient background
+          gradient: LinearGradient(
+            begin: Alignment.bottomRight,
+            end: Alignment.topLeft,
+            colors: [Color(0xFFF8F9FA), Color(0xFF264162), Color(0xFF0A1A2F)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('rooms')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData)
+                      return const Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final crossAxisCount = constraints.maxWidth > 900
+                            ? 3
+                            : constraints.maxWidth > 600
+                                ? 2
+                                : 1;
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(16),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 1.2,
+                          ),
+                          itemCount: docs.length,
+                          itemBuilder: (context, i) {
+                            final data = docs[i].data() as Map<String, dynamic>;
+                            final roomId = docs[i].id;
+
+                            // Pull booked ranges
+                            final bookedRanges =
+                                List.from(data['bookedRanges'] ?? []);
+
+                            // Determine occupation status based on TODAY
+                            bool isTodayOccupied = false;
+                            DateTime t = DateTime.now();
+                            for (var r in bookedRanges) {
+                              final s = (r['start'] as Timestamp).toDate();
+                              final e = (r['end'] as Timestamp).toDate();
+                              if (!t.isBefore(s) && !t.isAfter(e)) {
+                                isTodayOccupied = true;
+                                break;
+                              }
+                            }
+
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedRoomId = roomId;
+                                  selectedRoomBookedRanges = bookedRanges;
+                                });
+                                _openBookingDialog(roomId, bookedRanges);
+                              },
+                              child: Opacity(
+                                opacity: isTodayOccupied ? 0.5 : 1.0,
+                                child: Card(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14)),
+                                  elevation: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            child: Image.network(
+                                              data['photoUrl'] ?? '',
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Container(
+                                                color: auxColor3,
+                                                child: const Center(
+                                                    child: Icon(Icons.hotel,
+                                                        size: 48)),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          data['title'] ?? 'Room',
+                                          style: TextStyle(
+                                              fontSize: 18,
+                                              color: mainColor,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "${data['roomType'] ?? ''} • \$${data['pricePerDay']}/day",
+                                          style: TextStyle(
+                                              color:
+                                                  mainColor.withOpacity(0.8)),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        if (isTodayOccupied)
+                                          const Text("Occupied Today",
+                                              style:
+                                                  TextStyle(color: Colors.red))
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // Bottom booking bar
+              Container(
+                padding: const EdgeInsets.all(12),
+                color: Colors.transparent,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide:
+                                BorderSide(color: mainColor.withOpacity(0.2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: auxColor, width: 2),
+                          ),
+                        ),
+                        onChanged: (v) => setState(() {/* store duration */}),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: auxColor,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 20)),
+                        onPressed: selectedRoomId == null
+                            ? null
+                            : () => _openBookingDialog(
+                                selectedRoomId!, selectedRoomBookedRanges),
+                        child: const Text('Book Now'))
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openBookingDialog(String roomId, List bookedRanges) {
+    DateTime? startDate;
+    DateTime? endDate;
+    final effectsController = TextEditingController();
+    List<String> personalEffects = [];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              backgroundColor: auxColor3,
+              title: const Text("Book Room",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // PERSONAL EFFECTS INPUT
+                  TextField(
+                    controller: effectsController,
+                    decoration: InputDecoration(
+                      hintText: "Add a personal effect",
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () {
+                          if (effectsController.text.trim().isNotEmpty) {
+                            setState(() {
+                              personalEffects
+                                  .add(effectsController.text.trim());
+                              effectsController.clear();
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Wrap(
+                    spacing: 6,
+                    children: personalEffects.map((e) {
+                      return Chip(
+                        label: Text(e),
+                        onDeleted: () {
+                          setState(() => personalEffects.remove(e));
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // START DATE PICKER
+                  ElevatedButton(
+                    onPressed: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        selectableDayPredicate: (day) {
+                          return _isDayAvailable(day, bookedRanges);
+                        },
+                      );
+                      if (picked != null) {
+                        setState(() => startDate = picked);
+                      }
+                    },
+                    child: Text(startDate == null
+                        ? "Select Start Date"
+                        : "Start: ${startDate!.toString().split(' ')[0]}"),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // END DATE PICKER
+                  ElevatedButton(
+                    onPressed: startDate == null
+                        ? null
+                        : () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate:
+                                  startDate!.add(const Duration(days: 1)),
+                              firstDate: startDate!,
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 365)),
+                              selectableDayPredicate: (day) {
+                                if (day.isBefore(startDate!)) return false;
+                                return _isDayAvailable(day, bookedRanges);
+                              },
+                            );
+                            if (picked != null) {
+                              setState(() => endDate = picked);
+                            }
+                          },
+                    child: Text(endDate == null
+                        ? "Select End Date"
+                        : "End: ${endDate!.toString().split(' ')[0]}"),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: auxColor),
+                  onPressed: (startDate == null || endDate == null)
+                      ? null
+                      : () async {
+                          Navigator.pop(context);
+                          await createBooking(
+                            userId: widget.userId,
+                            roomId: roomId,
+                            start: startDate!,
+                            end: endDate!,
+                            personalEffects: personalEffects,
+                          );
+                        },
+                  child: const Text("Confirm Booking"),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  bool _isDayAvailable(DateTime day, List bookedRanges) {
+    for (final r in bookedRanges) {
+      final start = (r['start'] as Timestamp).toDate();
+      final end = (r['end'] as Timestamp).toDate();
+
+      if (!day.isBefore(start) && !day.isAfter(end)) {
+        return false; // day blocked
+      }
+    }
+    return true; // day free
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Text('Rooms',
+              style: TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.bold, color: mainColor)),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
+
+  void _onSelectRoom(String roomId) {
+    setState(() {
+      selectedRoomId = selectedRoomId == roomId ? null : roomId;
+    });
+  }
+
+  Future<void> createBooking({
+    required String userId,
+    required String roomId,
+    required DateTime start,
+    required DateTime end,
+    required List<String> personalEffects,
+  }) async {
+    final firestore = FirebaseFirestore.instance;
+    final roomRef = firestore.collection('rooms').doc(roomId);
+
+    await firestore.runTransaction((tx) async {
+      final snap = await tx.get(roomRef);
+      final data = snap.data()!;
+      final bookedRanges = List.from(data['bookedRanges'] ?? []);
+
+      // OVERLAP CHECK
+      for (final r in bookedRanges) {
+        final s = (r['start'] as Timestamp).toDate();
+        final e = (r['end'] as Timestamp).toDate();
+        if (start.isBefore(e) && s.isBefore(end)) {
+          throw Exception("Selected date range is unavailable.");
+        }
+      }
+
+      // CREATE BOOKING DOCUMENT
+      final bookingRef = firestore.collection('bookings').doc();
+      tx.set(bookingRef, {
+        'bookId': bookingRef.id,
+        'userId': userId,
+        'roomBooked': roomId,
+        'startDate': Timestamp.fromDate(start),
+        'endDate': Timestamp.fromDate(end),
+        'personalEffects': personalEffects,
+        'paymentStatus': 'pending',
+        'status': 'confirmed',
+        'createdAt': FieldValue.serverTimestamp(),
+        'events': [
+          {
+            'type': 'booking',
+            'step': 'placed',
+            'done': true,
+            'ts': FieldValue.serverTimestamp(),
+            'by': userId
+          }
+        ],
+        'checkinSummary': {},
+        'checkoutSummary': {},
+      });
+
+      // UPDATE ROOM bookedRanges
+      bookedRanges.add({
+        'start': Timestamp.fromDate(start),
+        'end': Timestamp.fromDate(end),
+      });
+
+      tx.update(roomRef, {'bookedRanges': bookedRanges});
+    });
+
+    // SEND NOTIFICATION
+    await createNotification(
+      title: "New Room Booking",
+      message: "A user booked room $roomId",
+      type: "book",
+    );
+  }
+}

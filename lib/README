@@ -1,0 +1,83 @@
+Major project interface and flowechart;; 
+
+User collection as doc with auto id
+Account record and doc (sign in -- google)
+Basic Info via Valid document
+Verification status
+Fraud check and scoring with AI
+preferences
+live status (is user is active -- checked.)
+total booking history (as booking ids) in a list
+orders; (cleaning, food order etc..) (stored as id)
+present room (the present room user occupies -- as id of the room (room id))
+
+
+Booking collection as doc with auto id
+basic room details and styles
+payment status
+guest/ user who booked 
+room in book (as id)
+duration of booking and stay 
+and other relevant info 
+check in and check out records per day.
+like a map; 
+
+check in {entry1: 12pm, entry2: 3pm}
+check out {entry1: 2pm, entry2: 6am}
+
+the check in entry1 and check out entry 1 are in the same sequence. 
+this would be in the user profile control in the admin hotel dashboard.. 
+
+orders. (room service as id) as collection doc with auto id
+type of order (food, drinks, drycleaning, massage, and more)
+order details
+order completion 
+order status 
+order payment status 
+
+rooms collection as doc with auto id 
+cleaning schedule 
+cleaning status 
+room style and details 
+occupied or not.  
+
+
+storage structure;;
+
+rooms/{roomId}:
+{
+  roomId: "<doc-id>",
+  title: "Ocean View Deluxe",
+  roomType: "luxury",               // economy | standard | luxury
+  pricePerDay: 23,550.0,               // number (currency)
+  <!-- occupied: false,                  // boolean -->
+  cleaningScheduleIndex: 3,         // number (your internal shift/day index)
+  cleaningStatus: "not_cleaned",    // cleaned | not_cleaned
+  features: ["tv", "fridge", "ac"], // array
+  photoUrl: "https://...",          // string (or empty)
+  createdAt: Timestamp,
+  // optional availability calendar or rules...
+}
+
+bookings/{autoDocId}:
+{
+  bookId: "<same-as-doc-id>",        // set after creation or keep docRef.id client side
+  paymentStatus: "pending",          // pending | paid | refunded | failed
+  userId: "uid_abc123",
+  roomBooked: "roomDocId",
+  duration: "3 days",                // or "2 months 3 days" (string) — or keep structured {days:3, months:0}
+  personalEffect: ["laptop", "suitcase"],
+  // events array gives a complete history of checkin/checkout steps:
+  events: [
+    { type: "booking", step: "placed", done: true, ts: Timestamp, by: "uid_abc123" }
+  ],
+  status: "confirmed",               // pending | confirmed | checked_in | checked_out | cancelled
+  createdAt: Timestamp,
+  checkinSummary: {                  // optional quick-check snapshot
+    entry1: true,
+    entry2: true,
+    entry3: false,
+    lastCheckinAt: Timestamp
+  },
+  checkoutSummary: { ... }           // similar to checkinSummary
+}
